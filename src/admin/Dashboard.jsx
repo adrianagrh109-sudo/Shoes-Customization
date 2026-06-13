@@ -1,7 +1,7 @@
 // src/admin/Dashboard.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import emailjs from '@emailjs/browser'; // <-- 1. Import EmailJS
+import emailjs from '@emailjs/browser'; 
 import {
   Box,
   Button,
@@ -24,6 +24,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { RepeatIcon } from '@chakra-ui/icons';
+import { useNavigate } from 'react-router-dom';
 
 const statusColorScheme = {
   pending: 'yellow',
@@ -35,6 +36,7 @@ export default function AdminDashboard() {
   const [pesanan, setPesanan] = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+  const navigate = useNavigate(); 
 
   useEffect(() => {
     fetchPesanan();
@@ -63,9 +65,31 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
-  // <-- 2. Fungsi Otomatisasi EmailJS
+  async function handleLogout() {
+    // fix: Menangkap objek error dari Supabase Auth
+    const { error } = await supabase.auth.signOut();
+    
+    if (error) {
+      toast({
+        title: 'Gagal Logout',
+        description: error.message,
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } else {
+      toast({
+        title: 'Berhasil Logout',
+        description: 'Sampai jumpa kembali, Admin!',
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      });
+      navigate('/login'); 
+    }
+  }
+
   async function kirimEmailStatus(customerName, customerEmail, statusBaru) {
-    // Teks deskripsi progress custom biar emailnya estetik dan komunikatif
     let deskripsiProgress = "Pesanan Anda saat ini sedang masuk dalam antrean pengecekan tim desain kami.";
     if (statusBaru === 'In Production') {
       deskripsiProgress = "Sepatu kustom Anda sudah mulai masuk meja produksi! Tim artisan kami sedang merakit dan mewarnai sepatu Anda dengan penuh ketelitian.";
@@ -81,13 +105,12 @@ export default function AdminDashboard() {
     };
 
     try {
-      // GANTI string kosong di bawah ini dengan ID dari dashboard EmailJS lu
       await emailjs.send(
-       import.meta.env.VITE_EMAILJS_SERVICE_ID,
-       import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
-       templateParams,
-       import.meta.env.VITE_EMAILJS_PUBLIC_KEY
-    );
+        import.meta.env.VITE_EMAILJS_SERVICE_ID,
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        templateParams,
+        import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+      );
       console.log('Email status berhasil dikirim via EmailJS!');
     } catch (err) {
       console.error('EmailJS Error:', err);
@@ -102,7 +125,6 @@ export default function AdminDashboard() {
   }
 
   async function updateStatus(id, statusBaru) {
-    // Ambil data customer yang mau di-update buat dapetin nama & emailnya
     const customer = pesanan.find((p) => p.id === id);
     if (!customer) return;
 
@@ -120,7 +142,6 @@ export default function AdminDashboard() {
         isClosable: true,
       });
     } else {
-      // 1. Update State Lokal di UI
       setPesanan((prev) => prev.map((p) => (p.id === id ? { ...p, status_pesanan: statusBaru } : p)));
       
       toast({
@@ -131,7 +152,6 @@ export default function AdminDashboard() {
         isClosable: true,
       });
 
-      // 2. Pemicu Pengiriman Email Notifikasi
       if (customer.customer_email) {
         kirimEmailStatus(customer.customer_name, customer.customer_email, statusBaru);
       }
@@ -149,15 +169,27 @@ export default function AdminDashboard() {
             <Text color="gray.600">Kelola status pesanan, tinjau detail pelanggan, dan update progress produksi.</Text>
           </Box>
 
-          <Button
-            leftIcon={<Icon as={RepeatIcon} />}
-            colorScheme="blackAlpha"
-            variant="solid"
-            onClick={fetchPesanan}
-            minW="150px"
-          >
-            Refresh Data
-          </Button>
+          <Flex gap={3}>
+            <Button
+              leftIcon={<Icon as={RepeatIcon} />}
+              colorScheme="blackAlpha"
+              variant="outline"
+              onClick={fetchPesanan}
+              minW="130px"
+            >
+              Refresh Data
+            </Button>
+
+            {/* Tombol Logout Baru */}
+            <Button
+              colorScheme="red"
+              variant="solid"
+              onClick={handleLogout}
+              minW="100px"
+            >
+              Logout
+            </Button>
+          </Flex>
         </Flex>
 
         <Box bg="white" rounded="2xl" shadow="sm" borderWidth={1} borderColor="gray.200" overflowX="auto">
