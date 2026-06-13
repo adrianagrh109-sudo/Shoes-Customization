@@ -1,6 +1,7 @@
 // src/admin/Dashboard.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import emailjs from '@emailjs/browser'; // <-- 1. Import EmailJS
 import {
   Box,
   Button,
@@ -62,7 +63,49 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
+  // <-- 2. Fungsi Otomatisasi EmailJS
+  async function kirimEmailStatus(customerName, customerEmail, statusBaru) {
+    // Teks deskripsi progress custom biar emailnya estetik dan komunikatif
+    let deskripsiProgress = "Pesanan Anda saat ini sedang masuk dalam antrean pengecekan tim desain kami.";
+    if (statusBaru === 'In Production') {
+      deskripsiProgress = "Sepatu kustom Anda sudah mulai masuk meja produksi! Tim artisan kami sedang merakit dan mewarnai sepatu Anda dengan penuh ketelitian.";
+    } else if (statusBaru === 'Done') {
+      deskripsiProgress = "Kabar gembira! Sepatu kustom Anda sudah selesai diproduksi, lolos quality control, dan siap untuk dikirimkan ke alamat Anda.";
+    }
+
+    const templateParams = {
+      customer_name: customerName,
+      customer_email: customerEmail,
+      status_baru: statusBaru,
+      deskripsi_progress: deskripsiProgress,
+    };
+
+    try {
+      // GANTI string kosong di bawah ini dengan ID dari dashboard EmailJS lu
+      await emailjs.send(
+       import.meta.env.VITE_EMAILJS_SERVICE_ID,
+       import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+       templateParams,
+       import.meta.env.VITE_EMAILJS_PUBLIC_KEY
+    );
+      console.log('Email status berhasil dikirim via EmailJS!');
+    } catch (err) {
+      console.error('EmailJS Error:', err);
+      toast({
+        title: 'Email Gagal Dikirim',
+        description: 'Status di database terupdate, tapi email notifikasi gagal terkirim.',
+        status: 'warning',
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+  }
+
   async function updateStatus(id, statusBaru) {
+    // Ambil data customer yang mau di-update buat dapetin nama & emailnya
+    const customer = pesanan.find((p) => p.id === id);
+    if (!customer) return;
+
     const { error } = await supabase
       .from('designs')
       .update({ status_pesanan: statusBaru })
@@ -77,7 +120,9 @@ export default function AdminDashboard() {
         isClosable: true,
       });
     } else {
+      // 1. Update State Lokal di UI
       setPesanan((prev) => prev.map((p) => (p.id === id ? { ...p, status_pesanan: statusBaru } : p)));
+      
       toast({
         title: 'Status diperbarui',
         description: `Pesanan berhasil diubah menjadi ${statusBaru}.`,
@@ -85,6 +130,11 @@ export default function AdminDashboard() {
         duration: 3000,
         isClosable: true,
       });
+
+      // 2. Pemicu Pengiriman Email Notifikasi
+      if (customer.customer_email) {
+        kirimEmailStatus(customer.customer_name, customer.customer_email, statusBaru);
+      }
     }
   }
 
@@ -140,7 +190,7 @@ export default function AdminDashboard() {
               <Tbody>
                 {pesanan.map((p) => (
                   <Tr key={p.id} _hover={{ bg: 'gray.50' }}>
-                    <Td fontWeight="semibold">{p.Customer_Name || '-'}</Td>
+                    <Td fontWeight="semibold">{p.customer_name || '-'}</Td>
                     <Td>
                       <Text>{p.customer_email || '-'}</Text>
                       <Text fontSize="sm" color="gray.500">
@@ -174,4 +224,3 @@ export default function AdminDashboard() {
     </Box>
   );
 }
-
